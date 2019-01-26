@@ -5,7 +5,7 @@ from time import sleep
 from asyncio import run
 from hacmec.http import aiohttp
 from hacmec import ENDPOINT_LETSENCRYPT_STAGING
-from hacmec.client import Hacmec, dns as dnsid, AcmeChallengeDns01
+from hacmec.client import Hacmec, AcmeIdentifier, AcmeChallengeDns01
 
 
 from collections import deque
@@ -29,57 +29,6 @@ from base64 import b64encode
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes
 from cryptography.x509.oid import NameOID
-
-
-def update_dns(host, key_name, secret, domain, records): 
-    keyring = dns.tsigkeyring.from_text({key_name: b64encode(secret.encode()).decode()})
-    update = dns.update.Update(domain, keyring=keyring, keyalgorithm=HMAC_SHA256)
-
-    for dom, value in records.items():
-        dom = dom.rstrip('.')
-        if not dom.endswith(domain):
-            raise ValueError(dom)
-        dom = dom[:-len(domain)]
-        dom = dom.rstrip('.')
-        print(f'{dom} -> {value}')
-        update.replace(dom, 60, 'txt', '"' + value + '"')
-
-    dns.query.tcp(update, host)
-
-
-def poll_dns(ns, records):
-    ns_ips = list(map(resolve_a, ns))
-    
-    todo = deque((ip, fqdn, value) for ip in ns_ips for fqdn, value in records.items())
-    print('Poll DNS:')
-    jprint(list(todo))
-
-    while todo:
-        job = todo.popleft()
-        value = resolve_txt(job[1], job[0])
-        if value == job[2]:
-            print(f'{job} done!')
-            continue
-        print(f'Not yet ok: {job}')
-        todo.append(job)
-        sleep(5)
-
-
-def resolve_a(name):
-    for i in range(10):
-        try:
-            return dns.resolver.query(name, 'A')[0].address
-        except Exception as ex:
-            print(ex)
-            sleep(5)
-
-
-def resolve_txt(name, server):
-    try:
-        return dns.query.udp(dns.message.make_query(name, 'TXT'), server).answer[0][0].strings[0].decode()
-    except Exception as ex:
-        print(ex)
-        return None
 
 
 def get_csr(keyfile: str, domains) -> bytes:
@@ -137,7 +86,7 @@ async def prog(acme: Hacmec) -> None:
     print('Account:')
     jprint(acc.data)
 
-    order = await acc.new_order(map(dnsid, config['ids']))
+    order = await acc.new_order(map(AcmeIdentifier.dns, config['ids']))
     print(f'Order "{order.url}":')
     jprint(order.data)
 

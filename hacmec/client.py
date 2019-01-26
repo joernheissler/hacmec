@@ -571,6 +571,6 @@ class AcmeIdentifier:
             'value': self.value,
         }
 
-
-def dns(name: str) -> AcmeIdentifier:
-    return AcmeIdentifier('dns', name)
+    @classmethod
+    def dns(cls, value: str):
+        return cls('dns', value)
