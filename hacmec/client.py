@@ -530,7 +530,6 @@ class AcmeChallenge:
 
     async def respond(self) -> None:
         resp = await self._acc.post(self.url, {})
-        print(resp.json)
 
     @classmethod
     def create(cls, auth: AcmeAuthorization, data: Mapping[str, Any]) -> AcmeChallenge:
