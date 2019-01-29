@@ -5,7 +5,6 @@ Utils for DNS-01 method
 from collections import deque
 from dataclasses import dataclass
 from typing import Mapping, Set
-from base64 import b64encode
 from time import sleep
 
 import logging
@@ -14,6 +13,7 @@ import dns.query
 import dns.tsigkeyring
 import dns.update
 import dns.resolver
+import dns.name
 
 
 def strip_zone(fqdn: str, zone: str) -> str:
@@ -28,12 +28,11 @@ def strip_zone(fqdn: str, zone: str) -> str:
     return fqdn[:-len(zone)].rstrip('.')
 
 
-from dns.tsig import HMAC_SHA256
 def update_txt(
         nserver: str,
         key_name: str,
-        secret: bytes,
-        hmac_algo: dns.name.Name,
+        secret: str,
+        hmac_algo: str,
         zone: str,
         records: Mapping[str, str],
         ttl: int,
@@ -43,7 +42,7 @@ def update_txt(
 
     nserver: DNS server to send update to.
     key_name: Name of shared key
-    secret: Shared secret (byte string; if your key is in base64, decode it first!)
+    secret: Shared secret (b64 string)
     hmac_algo: hmac algorithm to use for signing
     zone: DNS zone to update
     records: Map from domain names (fully qualified) to TXT record values.
@@ -52,9 +51,9 @@ def update_txt(
     update = dns.update.Update(
         zone,
         keyring=dns.tsigkeyring.from_text({
-            key_name: b64encode(secret).decode(),
+            key_name: secret,
         }),
-        keyalgorithm=hmac_algo,
+        keyalgorithm=dns.name.from_text(hmac_algo),
     )
 
     for fqdn, value in records.items():
@@ -98,7 +97,7 @@ class PollJob:
     value: str
 
 
-def poll_dns(zone: str, records: Mapping[str, str], v4: bool = True, v6: bool = False) -> None:
+def poll_dns(zone_records: Mapping[str, Mapping[str, str]], v4: bool = True, v6: bool = False) -> None:
     """
     Poll DNS servers for TXT records.
 
@@ -107,16 +106,15 @@ def poll_dns(zone: str, records: Mapping[str, str], v4: bool = True, v6: bool = 
     v4: query v4 dns servers
     v6: query v6 dns servers
     """
-    nserver = resolve(zone, 'NS')
-    ns_ips = {
-        addr
-        for ns in nserver
-        for addr in (resolve(ns, 'A') if v4 else set()) | (resolve(ns, 'AAAA') if v6 else set())
-    }
 
     todo = deque(
         PollJob(nsip, fqdn, value)
-        for nsip in ns_ips
+        for zone, records in zone_records.items()
+        for nsip in {
+            nsip
+            for ns in resolve(zone, 'NS')
+            for nsip in (resolve(ns, 'A') if v4 else set()) | (resolve(ns, 'AAAA') if v6 else set())
+        }
         for fqdn, value in records.items()
     )
 

@@ -12,6 +12,7 @@ from collections import deque
 from cryptokey.public.key import PrivateKey
 from .util import force
 import json
+import logging
 
 
 MAX_NONCES = 10
@@ -256,6 +257,7 @@ class AcmeAccount:
         key: private key
         """
 
+        logging.info('Retrieving account by key')
         resp = await hacmec.post(key, hacmec.directory.new_account, {
             'onlyReturnExisting': True,
         })
@@ -274,6 +276,7 @@ class AcmeAccount:
         if tos_agreed:
             params['termsOfServiceAgreed'] = tos_agreed
 
+        logging.info('Registering new account')
         resp = await hacmec.post(key, hacmec.directory.new_account, params)
         return AcmeAccount(hacmec, key, resp.location, resp.json)
 
@@ -287,7 +290,7 @@ class AcmeAccount:
         self.data = data
 
     def __str__(self) -> str:
-        return f'<AcmeAccount kid={self.kid} status={self.status}>'
+        return f'AcmeAccount(kid={self.kid}, status={self.status})'
 
     @property
     def contact(self) -> Sequence[str]:
